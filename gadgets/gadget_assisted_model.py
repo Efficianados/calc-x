@@ -109,6 +109,15 @@ class GadgetAssistedModel:
         last_num_total_tokens: int | None = None
         total_output_str: str = ""
 
+        if self.architecture_style == 'decoder-only':
+                decoder_only_generate = transformers.pipeline(
+                        model = super(),
+                        tokenizer = self.tokenizer,
+                        task = 'text-generation',
+                        stopping_criteria = stopping_criteria,
+                        **kwargs
+                    )
+
         while True:
             total_output_encoded = self.tokenizer(text_target=total_output_str,
                                                   add_special_tokens=False,
@@ -127,24 +136,15 @@ class GadgetAssistedModel:
             if min_tokens is not None:
                 kwargs["min_new_tokens"] = max(0, min_tokens - num_total_tokens)
 
-            decoder_input_ids = torch.cat([
-                torch.tensor(self.config.decoder_start_token_id, dtype=torch.long).to(self.device).reshape(1, 1),
-                total_output_encoded
-            ], dim=-1)
-
             model_output: transformers.utils.ModelOutput
 
 
-            if self.architecture_style == 'decoder-only':
-                decoder_only_generate = transformers.pipeline(
-                        model = super(),
-                        tokenizer = self.tokenizer,
-                        task = 'text-generation',
-                        stopping_criteria = stopping_criteria,
-                        **kwargs
-                    )
-
             if self.architecture_style == 'encoder-decoder':
+                decoder_input_ids = torch.cat([
+                    torch.tensor(self.config.decoder_start_token_id, dtype=torch.long).to(self.device).reshape(1, 1),
+                    total_output_encoded
+                ], dim=-1)
+                
                 model_output = super().generate(input_ids=input_ids,
                                                 stopping_criteria=stopping_criteria,
                                                 decoder_input_ids=decoder_input_ids,
