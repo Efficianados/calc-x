@@ -6,7 +6,7 @@ from typing import Callable, List, Optional
 import bs4
 import torch
 import transformers
-from transformers import GenerationConfig, LogitsProcessorList, StoppingCriteriaList
+from transformers import GenerationConfig, LogitsProcessorList, StoppingCriteriaList, pipeline
 
 from gadgets.gadget import Gadget
 from gadgets.markup import GADGET_TAG, OUTPUT_TAG
@@ -134,16 +134,32 @@ class GadgetAssistedModel:
 
             model_output: transformers.utils.ModelOutput
 
+
+            if self.architecture_style == 'decoder-only':
+                decoder_only_generate = transformers.pipeline(
+                        model = super(),
+                        tokenizer = self.tokenizer,
+                        task = 'text-generation',
+                        stopping_criteria = stopping_criteria,
+                        **kwargs
+                    )
+
             if self.architecture_style == 'encoder-decoder':
                 model_output = super().generate(input_ids=input_ids,
                                                 stopping_criteria=stopping_criteria,
                                                 decoder_input_ids=decoder_input_ids,
                                                 **kwargs)[0]  # TODO This does not work in batch mode
+                total_output_str = self.tokenizer.decode(model_output,
+                                                     skip_special_tokens=True,
+                                                     spaces_between_special_tokens=False)
+                
                 # which occurs in evaluation during training
             elif self.architecture_style == 'decoder-only':
-                model_output = super().generate(input_ids=input_ids,
-                                                stopping_criteria=stopping_criteria
-                                                **kwargs)[0]
+                total_output_str = decoder_only_generate(input_ids)[0]['generated-text']
+                
+                # model_output = super().generate(input_ids=input_ids,
+                #                                 stopping_criteria=stopping_criteria
+                #                                 **kwargs)[0]
 
             # model.generate() outputs starts with decoder_input_ids
             total_output_str = self.tokenizer.decode(model_output,
